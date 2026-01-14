@@ -10,152 +10,156 @@
 
 using namespace std;
 
-const int RAZMER_POLYA = 3;                     // Размер поля 3x3
-const char PUSTAYA_KLETKA = ' ';                // Символ пустой клетки
-const char IGROK_X = 'X';                       // Символ первого игрока
-const char IGROK_O = 'O';                       // Символ второго игрока
-const string IMYA_FAYLA = "sohranenie_igry.txt"; // Имя файла
+const int BOARD_SIZE = 3; // Размер поля 3x3
+const char EMPTY_CELL = ' '; // Символ пустой клетки
+const char PLAYER_X = 'X'; // Символ первого игрока
+const char PLAYER_O = 'O'; // Символ второго игрока
+const string SAVE_FILE = "saved_game.txt"; // Имя файла
 
-typedef vector<vector<char> > IgrovoePole;
+typedef vector<vector<char> > GameBoard;
 
 // Функция для очистки экрана
-void ochistit_ekran() {
+void clearScreen() {
     system("clear");
 }
 
 // Функция для цветного текста
-void pechatat_cvetom(const string& tekst, int kod_tsveta) {
-    cout << "\033[" << kod_tsveta << "m" << tekst << "\033[0m";
+void printColor(const string& text, int colorCode) {
+    cout << "\033[" << colorCode << "m" << text << "\033[0m";
 }
 
 // Функция для печати заголовка
-void pechatat_zagolovok() {
-    ochistit_ekran();
+void printHeader() {
+    clearScreen();
     
     cout << "----------------------------------------\n";
-    pechatat_cvetom("        КРЕСТИКИ-НОЛИКИ\n", 33);
+    printColor("        КРЕСТИКИ-НОЛИКИ\n", 33);
     cout << "----------------------------------------\n\n";
 }
 
 // Функция для печати текста по центру
-void pechatat_po_centru(const string& tekst) {
-    int shirina = 40;
-    int dlinna_teksta = tekst.length();
-    int otstup = (shirina - dlinna_teksta) / 2;
+void printCentered(const string& text) {
+    int width = 40;
+    int textLength = text.length();
+    int padding = (width - textLength) / 2;
     
-    if (otstup < 0) otstup = 0;
+    if (padding < 0) padding = 0;
     
-    cout << string(otstup, ' ') << tekst << endl;
+    cout << string(padding, ' ') << text << endl;
 }
 
 // Функция "Нажмите Enter для продолжения"
-void ozhidat_enter() {
+void waitForEnter() {
     cout << "\nНажмите Enter для продолжения...";
+    // Игнорируем все символы в буфере ввода до символа новой строки
     cin.ignore(numeric_limits<streamsize>::max(), '\n');
-    cin.get();
+    cin.get();  // Ждем нажатия Enter
 }
 
 // Функция для удаления лишних пробелов
-string udalit_probely(const string& stroka) {
-    size_t nachalo = stroka.find_first_not_of(" \t\n\r");
-    if (nachalo == string::npos) return "";
+string trimString(const string& str) {
+    // Ищем первый символ, который не является пробелом, табуляцией или переводом строки
+    size_t start = str.find_first_not_of(" \t\n\r");
+    if (start == string::npos) return "";  // Если вся строка из пробелов
     
-    size_t konec = stroka.find_last_not_of(" \t\n\r");
-    return stroka.substr(nachalo, konec - nachalo + 1);
+    // Ищем последний непробельный символ
+    size_t end = str.find_last_not_of(" \t\n\r");
+    // Вырезаем подстроку от первого до последнего непробельного символа
+    return str.substr(start, end - start + 1);
 }
 
 // Функция для получения правильного числа
-int poluchit_chislo(const string& podskazka, int minimum, int maximum) {
-    int chislo;
-    bool pravilno = false;
+int getValidNumber(const string& prompt, int minVal, int maxVal) {
+    int number;
+    bool isValid = false;
     
-    while (!pravilno) {
-        cout << podskazka;
-        string vvod;
-        getline(cin, vvod);
-        vvod = udalit_probely(vvod);
+    while (!isValid) {
+        cout << prompt;
+        string input;
+        getline(cin, input);
+        input = trimString(input);
         
-        if (vvod.empty()) {
-            pechatat_cvetom("Ошибка: нельзя оставлять поле пустым!\n", 31);
+        if (input.empty()) {
+            printColor("Ошибка: нельзя оставлять поле пустым!\n", 31);
             continue;
         }
         
-        // Старый способ проверки - без range-based for
-        bool eto_chislo = true;
-        for (size_t i = 0; i < vvod.length(); i++) {
-            char simvol = vvod[i];
-            if (!isdigit(simvol) && simvol != '-') {
-                eto_chislo = false;
+        // Проверяем, что все символы - цифры (или минус для отрицательных чисел)
+        bool isNumber = true;
+        for (size_t i = 0; i < input.length(); i++) {
+            char symbol = input[i];
+            if (!isdigit(symbol) && symbol != '-') {
+                isNumber = false;
                 break;
             }
         }
         
-        if (!eto_chislo) {
-            pechatat_cvetom("Ошибка: нужно ввести число, а не буквы!\n", 31);
+        if (!isNumber) {
+            printColor("Ошибка: нужно ввести число, а не буквы!\n", 31);
             continue;
         }
         
-        // Пробуем преобразовать строку в число
-        // Старый способ без stoi
-        char* endptr;
-        chislo = strtol(vvod.c_str(), &endptr, 10);
+        // Преобразуем строку в число 
+        char* endPtr;
+        number = strtol(input.c_str(), &endPtr, 10);
         
-        // Проверяем, было ли преобразование успешным
-        if (*endptr != '\0') {
-            pechatat_cvetom("Ошибка: неправильное число!\n", 31);
+        // Проверяем успешность преобразования: если endPtr указывает не на конец строки,
+        // значит были лишние символы
+        if (*endPtr != '\0') {
+            printColor("Ошибка: неправильное число!\n", 31);
             continue;
         }
         
-        // Проверяем диапазон
-        if (chislo < minimum || chislo > maximum) {
-            pechatat_cvetom("Ошибка: число должно быть от " + 
-                          to_string(minimum) + " до " + 
-                          to_string(maximum) + "!\n", 31);
+        // Проверяем, что число входит в заданный диапазон
+        if (number < minVal || number > maxVal) {
+            printColor("Ошибка: число должно быть от " + 
+                          to_string(minVal) + " до " + 
+                          to_string(maxVal) + "!\n", 31);
             continue;
         }
         
-        pravilno = true;
+        isValid = true;
     }
     
-    return chislo;
+    return number;
 }
 
 // Вспомогательная функция для приведения строки к нижнему регистру
-string sdelat_malenkimi(const string& str) {
+string toLowerCase(const string& str) {
     string result = str;
     for (size_t i = 0; i < result.length(); i++) {
-        result[i] = tolower(result[i]);
+        result[i] = tolower(result[i]);  // Преобразуем каждый символ в нижний регистр
     }
     return result;
 }
 
 // Функция для получения правильного выбора (да/нет)
-string poluchit_vybor(const string& podskazka) {
-    string vvod;
-    bool pravilno = false;
+string getChoice(const string& prompt) {
+    string input;
+    bool isValid = false;
     
-    while (!pravilno) {
-        cout << podskazka;
-        getline(cin, vvod);
-        vvod = udalit_probely(vvod);
+    while (!isValid) {
+        cout << prompt;
+        getline(cin, input);
+        input = trimString(input);
         
-        if (vvod.empty()) {
-            pechatat_cvetom("Ошибка: нужно что-то ввести!\n", 31);
+        if (input.empty()) {
+            printColor("Ошибка: нужно что-то ввести!\n", 31);
             continue;
         }
         
-        // Приводим к нижнему регистру
-        string vvod_malenkie = sdelat_malenkimi(vvod);
+        // Приводим к нижнему регистру для унификации сравнения
+        string lowerInput = toLowerCase(input);
         
-        // Проверяем варианты
-        if (vvod_malenkie == "да" || vvod_malenkie == "yes" || 
-            vvod_malenkie == "д" || vvod_malenkie == "y") {
+        // Проверяем различные варианты написания "да" и "нет"
+        if (lowerInput == "да" || lowerInput == "yes" || 
+            lowerInput == "д" || lowerInput == "y") {
             return "да";
-        } else if (vvod_malenkie == "нет" || vvod_malenkie == "no" || 
-                   vvod_malenkie == "н" || vvod_malenkie == "n") {
+        } else if (lowerInput == "нет" || lowerInput == "no" || 
+                   lowerInput == "н" || lowerInput == "n") {
             return "нет";
         } else {
-            pechatat_cvetom("Ошибка: пожалуйста, введите 'да' или 'нет'!\n", 31);
+            printColor("Ошибка: пожалуйста, введите 'да' или 'нет'!\n", 31);
         }
     }
     
@@ -163,29 +167,32 @@ string poluchit_vybor(const string& podskazka) {
 }
 
 // Создание пустого игрового поля
-IgrovoePole sozdat_pustoe_pole() {
-    return IgrovoePole(RAZMER_POLYA, vector<char>(RAZMER_POLYA, PUSTAYA_KLETKA));
+GameBoard createEmptyBoard() {
+    // Создаем двумерный вектор: BOARD_SIZE строк, каждая строка - вектор из BOARD_SIZE пробелов
+    return GameBoard(BOARD_SIZE, vector<char>(BOARD_SIZE, EMPTY_CELL));
 }
 
 // Красивый вывод игрового поля на экран
-void pokazat_pole(const IgrovoePole& pole) {
+void displayBoard(const GameBoard& board) {
     cout << "\n";
-    cout << "    1   2   3\n";
+    cout << "    1   2   3\n";  // Номера столбцов
     
-    cout << "  +---+---+---+\n";
+    cout << "  +---+---+---+\n";  // Верхняя граница
     
-    for (int stroka = 0; stroka < RAZMER_POLYA; stroka++) {
-        cout << char('A' + stroka) << " | ";
+    for (int row = 0; row < BOARD_SIZE; row++) {
+        // Буква строки: A, B, C (соответствует индексам 0, 1, 2)
+        cout << char('A' + row) << " | ";
         
-        for (int stolbec = 0; stolbec < RAZMER_POLYA; stolbec++) {
-            char kletka = pole[stroka][stolbec];
+        for (int col = 0; col < BOARD_SIZE; col++) {
+            char cell = board[row][col];
             
-            if (kletka == IGROK_X) {
-                pechatat_cvetom(string(1, kletka), 31);
-            } else if (kletka == IGROK_O) {
-                pechatat_cvetom(string(1, kletka), 34);
+            // Выводим символ с цветом в зависимости от игрока
+            if (cell == PLAYER_X) {
+                printColor(string(1, cell), 31);  // Красный для X
+            } else if (cell == PLAYER_O) {
+                printColor(string(1, cell), 34);  // Синий для O
             } else {
-                cout << kletka;
+                cout << cell;  // Пустая клетка - пробел
             }
             
             cout << " | ";
@@ -193,147 +200,173 @@ void pokazat_pole(const IgrovoePole& pole) {
         
         cout << "\n";
         
-        if (stroka < RAZMER_POLYA - 1) {
-            cout << "  +---+---+---+\n";
+        if (row < BOARD_SIZE - 1) {
+            cout << "  +---+---+---+\n";  // Разделитель между строками
         }
     }
     
-    cout << "  +---+---+---+\n\n";
+    cout << "  +---+---+---+\n\n";  // Нижняя граница
 }
+
 // Проверка, правильный ли формат хода
-bool proverit_format_hoda(const string& vvod, int& nomer_stroki, int& nomer_stolbtsa) {
-    if (vvod.length() != 2) return false;
+bool isValidMove(const string& input, int& row, int& col) {
+    // Ход должен состоять из 2 символов: буква + цифра
+    if (input.length() != 2) return false;
     
-    char bukva_stroki = toupper(vvod[0]);
-    char tsifra_stolbtsa = vvod[1];
+    // Первый символ - буква строки (A, B, C)
+    char rowChar = toupper(input[0]);
+    // Второй символ - цифра столбца (1, 2, 3)
+    char colChar = input[1];
     
-    if (bukva_stroki < 'A' || bukva_stroki > 'C') return false;
-    if (tsifra_stolbtsa < '1' || tsifra_stolbtsa > '3') return false;
+    // Проверяем допустимость буквы строки
+    if (rowChar < 'A' || rowChar > 'C') return false;
+    // Проверяем допустимость цифры столбца
+    if (colChar < '1' || colChar > '3') return false;
     
-    nomer_stroki = bukva_stroki - 'A';
-    nomer_stolbtsa = tsifra_stolbtsa - '1';
+    // Преобразуем символы в индексы массива:
+    // 'A' -> 0, 'B' -> 1, 'C' -> 2
+    // '1' -> 0, '2' -> 1, '3' -> 2
+    row = rowChar - 'A';
+    col = colChar - '1';
     
     return true;
 }
 
 // Сделать ход на поле
-bool sdelat_hod(IgrovoePole& pole, int stroka, int stolbec, char igrok) {
-    if (stroka < 0 || stroka >= RAZMER_POLYA || 
-        stolbec < 0 || stolbec >= RAZMER_POLYA) {
+bool makeMove(GameBoard& board, int row, int col, char player) {
+    // Проверяем, что координаты в пределах поля
+    if (row < 0 || row >= BOARD_SIZE || 
+        col < 0 || col >= BOARD_SIZE) {
         return false;
     }
     
-    if (pole[stroka][stolbec] != PUSTAYA_KLETKA) {
+    // Проверяем, что клетка пуста
+    if (board[row][col] != EMPTY_CELL) {
         return false;
     }
     
-    pole[stroka][stolbec] = igrok;
+    // Ставим символ игрока в указанную клетку
+    board[row][col] = player;
     return true;
 }
 
 // Проверка, есть ли победитель
-char proverit_pobeditelya(const IgrovoePole& pole) {
-    // Проверка строк
-    for (int stroka = 0; stroka < RAZMER_POLYA; stroka++) {
-        if (pole[stroka][0] != PUSTAYA_KLETKA && 
-            pole[stroka][0] == pole[stroka][1] && 
-            pole[stroka][1] == pole[stroka][2]) {
-            return pole[stroka][0];
+char checkWinner(const GameBoard& board) {
+    // Проверка строк: все три клетки в строке должны быть одинаковы и не пусты
+    for (int row = 0; row < BOARD_SIZE; row++) {
+        if (board[row][0] != EMPTY_CELL && 
+            board[row][0] == board[row][1] && 
+            board[row][1] == board[row][2]) {
+            return board[row][0];  // Возвращаем символ победителя
         }
     }
     
-    // Проверка столбцов
-    for (int stolbec = 0; stolbec < RAZMER_POLYA; stolbec++) {
-        if (pole[0][stolbec] != PUSTAYA_KLETKA && 
-            pole[0][stolbec] == pole[1][stolbec] && 
-            pole[1][stolbec] == pole[2][stolbec]) {
-            return pole[0][stolbec];
+    // Проверка столбцов: все три клетки в столбце должны быть одинаковы и не пусты
+    for (int col = 0; col < BOARD_SIZE; col++) {
+        if (board[0][col] != EMPTY_CELL && 
+            board[0][col] == board[1][col] && 
+            board[1][col] == board[2][col]) {
+            return board[0][col];
         }
     }
     
-    // Проверка диагоналей
-    if (pole[0][0] != PUSTAYA_KLETKA && 
-        pole[0][0] == pole[1][1] && 
-        pole[1][1] == pole[2][2]) {
-        return pole[0][0];
+    // Проверка главной диагонали (слева сверху направо вниз)
+    if (board[0][0] != EMPTY_CELL && 
+        board[0][0] == board[1][1] && 
+        board[1][1] == board[2][2]) {
+        return board[0][0];
     }
     
-    if (pole[0][2] != PUSTAYA_KLETKA && 
-        pole[0][2] == pole[1][1] && 
-        pole[1][1] == pole[2][0]) {
-        return pole[0][2];
+    // Проверка побочной диагонали (справа сверху налево вниз)
+    if (board[0][2] != EMPTY_CELL && 
+        board[0][2] == board[1][1] && 
+        board[1][1] == board[2][0]) {
+        return board[0][2];
     }
     
-    return PUSTAYA_KLETKA;
+    // Если ни одна из проверок не прошла - победителя нет
+    return EMPTY_CELL;
 }
 
-// Проверка, заполнено ли всё поле
-bool proverit_nichyu(const IgrovoePole& pole) {
-    for (int i = 0; i < RAZMER_POLYA; i++) {
-        for (int j = 0; j < RAZMER_POLYA; j++) {
-            if (pole[i][j] == PUSTAYA_KLETKA) {
+// Проверка, заполнено ли всё поле (ничья)
+bool isDraw(const GameBoard& board) {
+    // Проходим по всем клеткам поля
+    for (int i = 0; i < BOARD_SIZE; i++) {
+        for (int j = 0; j < BOARD_SIZE; j++) {
+            // Если найдена хоть одна пустая клетка - это не ничья
+            if (board[i][j] == EMPTY_CELL) {
                 return false;
             }
         }
     }
+    // Если все клетки заполнены - ничья
     return true;
 }
 
 // Сохранить игру в файл
-bool sohranit_igru(const IgrovoePole& pole, char tekushiy_igrok) {
-    ofstream fayl(IMYA_FAYLA);
+bool saveGame(const GameBoard& board, char currentPlayer) {
+    // Открываем файл для записи
+    ofstream file(SAVE_FILE);
     
-    if (!fayl.is_open()) {
-        pechatat_cvetom("Ошибка: не могу создать файл для сохранения!\n", 31);
+    if (!file.is_open()) {
+        printColor("Ошибка: не могу создать файл для сохранения!\n", 31);
         return false;
     }
     
-    fayl << tekushiy_igrok << endl;
+    // Сохраняем текущего игрока (чей ход)
+    file << currentPlayer << endl;
     
-    for (int i = 0; i < RAZMER_POLYA; i++) {
-        for (int j = 0; j < RAZMER_POLYA; j++) {
-            fayl << pole[i][j];
+    // Сохраняем игровое поле: каждая строка поля - отдельная строка в файле
+    for (int i = 0; i < BOARD_SIZE; i++) {
+        for (int j = 0; j < BOARD_SIZE; j++) {
+            file << board[i][j];  // Записываем символ клетки
         }
-        fayl << endl;
+        file << endl;  // Переход на новую строку после каждой строки поля
     }
     
-    fayl.close();
+    file.close();
     return true;
 }
 
 // Загрузить игру из файла
-bool zagruzit_igru(IgrovoePole& pole, char& tekushiy_igrok) {
-    ifstream fayl(IMYA_FAYLA);
+bool loadGame(GameBoard& board, char& currentPlayer) {
+    // Открываем файл для чтения
+    ifstream file(SAVE_FILE);
     
-    if (!fayl.is_open()) {
-        pechatat_cvetom("Ошибка: файл сохранения не найден!\n", 31);
+    if (!file.is_open()) {
+        printColor("Ошибка: файл сохранения не найден!\n", 31);
         return false;
     }
     
-    string liniya;
-    if (!getline(fayl, liniya) || liniya.empty()) {
-        pechatat_cvetom("Ошибка: файл поврежден!\n", 31);
+    string line;
+    // Читаем первую строку - символ текущего игрока
+    if (!getline(file, line) || line.empty()) {
+        printColor("Ошибка: файл поврежден!\n", 31);
         return false;
     }
-    tekushiy_igrok = liniya[0];
+    currentPlayer = line[0];
     
-    int nomer_stroki = 0;
-    while (getline(fayl, liniya) && nomer_stroki < RAZMER_POLYA) {
-        if (liniya.length() != RAZMER_POLYA) {
-            pechatat_cvetom("Ошибка: неправильный формат поля в файле!\n", 31);
+    int rowNum = 0;
+    // Читаем следующие 3 строки - игровое поле
+    while (getline(file, line) && rowNum < BOARD_SIZE) {
+        // Проверяем, что строка имеет правильную длину
+        if (line.length() != BOARD_SIZE) {
+            printColor("Ошибка: неправильный формат поля в файле!\n", 31);
             return false;
         }
         
-        for (int stolbec = 0; stolbec < RAZMER_POLYA; stolbec++) {
-            pole[nomer_stroki][stolbec] = liniya[stolbec];
+        // Копируем символы из строки в игровое поле
+        for (int col = 0; col < BOARD_SIZE; col++) {
+            board[rowNum][col] = line[col];
         }
-        nomer_stroki++;
+        rowNum++;
     }
     
-    fayl.close();
+    file.close();
     
-    if (nomer_stroki != RAZMER_POLYA) {
-        pechatat_cvetom("Ошибка: неполное поле в файле!\n", 31);
+    // Проверяем, что загружено полное поле (3 строки)
+    if (rowNum != BOARD_SIZE) {
+        printColor("Ошибка: неполное поле в файле!\n", 31);
         return false;
     }
     
@@ -341,121 +374,437 @@ bool zagruzit_igru(IgrovoePole& pole, char& tekushiy_igrok) {
 }
 
 // Запуск тестов программы
-void zapustit_testy() {
-    pechatat_zagolovok();
-    pechatat_cvetom("=== ТЕСТИРОВАНИЕ ПРОГРАММЫ ===\n", 33);
+void runTests() {
+    printHeader();
+    printColor("----ТЕСТИРОВАНИЕ ПРОГРАММЫ----\n", 33);
     
-    int proydeno_testov = 0;
-    int vsego_testov = 8;
+    int passedTests = 0;
+    int totalTests = 8;
     
     cout << "\nТест 1: Создание пустого поля... ";
-    IgrovoePole test_pole = sozdat_pustoe_pole();
-    bool test1_ok = true;
-    for (int i = 0; i < RAZMER_POLYA; i++) {
-        for (int j = 0; j < RAZMER_POLYA; j++) {
-            if (test_pole[i][j] != PUSTAYA_KLETKA) {
-                test1_ok = false;
+    GameBoard testBoard = createEmptyBoard();
+    bool test1OK = true;
+    // Проверяем, что все клетки поля - пустые
+    for (int i = 0; i < BOARD_SIZE; i++) {
+        for (int j = 0; j < BOARD_SIZE; j++) {
+            if (testBoard[i][j] != EMPTY_CELL) {
+                test1OK = false;
             }
         }
     }
-    if (test1_ok) {
-        pechatat_cvetom("ПРОЙДЕН ✓\n", 32);
-        proydeno_testov++;
+    if (test1OK) {
+        printColor("ПРОЙДЕН ✓\n", 32);
+        passedTests++;
     } else {
-        pechatat_cvetom("ПРОВАЛ ✗\n", 31);
+        printColor("ПРОВАЛ ✗\n", 31);
     }
     
     cout << "Тест 2: Проверка хода A1... ";
-    int stroka, stolbec;
-    bool test2_ok = proverit_format_hoda("A1", stroka, stolbec);
-    if (test2_ok && stroka == 0 && stolbec == 0) {
-        pechatat_cvetom("ПРОЙДЕН ✓\n", 32);
-        proydeno_testov++;
+    int row, col;
+    // Проверяем, что A1 правильно распознается как координата (0, 0)
+    bool test2OK = isValidMove("A1", row, col);
+    if (test2OK && row == 0 && col == 0) {
+        printColor("ПРОЙДЕН ✓\n", 32);
+        passedTests++;
     } else {
-        pechatat_cvetom("ПРОВАЛ ✗\n", 31);
+        printColor("ПРОВАЛ ✗\n", 31);
     }
     
     cout << "Тест 3: Проверка неправильного хода D4... ";
-    bool test3_ok = !proverit_format_hoda("D4", stroka, stolbec);
-    if (test3_ok) {
-        pechatat_cvetom("ПРОЙДЕН ✓\n", 32);
-        proydeno_testov++;
+    // Проверяем, что некорректный ход правильно отвергается
+    bool test3OK = !isValidMove("D4", row, col);
+    if (test3OK) {
+        printColor("ПРОЙДЕН ✓\n", 32);
+        passedTests++;
     } else {
-        pechatat_cvetom("ПРОВАЛ ✗\n", 31);
+        printColor("ПРОВАЛ ✗\n", 31);
     }
     
     cout << "Тест 4: Выполнение хода... ";
-    test_pole[0][0] = PUSTAYA_KLETKA;
-    bool test4_ok = sdelat_hod(test_pole, 0, 0, IGROK_X);
-    if (test4_ok && test_pole[0][0] == IGROK_X) {
-        pechatat_cvetom("ПРОЙДЕН ✓\n", 32);
-        proydeno_testov++;
+    // Очищаем тестовую клетку и пробуем поставить туда X
+    testBoard[0][0] = EMPTY_CELL;
+    bool test4OK = makeMove(testBoard, 0, 0, PLAYER_X);
+    if (test4OK && testBoard[0][0] == PLAYER_X) {
+        printColor("ПРОЙДЕН ✓\n", 32);
+        passedTests++;
     } else {
-        pechatat_cvetom("ПРОВАЛ ✗\n", 31);
+        printColor("ПРОВАЛ ✗\n", 31);
     }
     
     cout << "Тест 5: Проверка победы... ";
-    IgrovoePole pole_pobedy = sozdat_pustoe_pole();
-    pole_pobedy[0][0] = IGROK_X;
-    pole_pobedy[0][1] = IGROK_X;
-    pole_pobedy[0][2] = IGROK_X;
-    char pobeditel = proverit_pobeditelya(pole_pobedy);
-    if (pobeditel == IGROK_X) {
-        pechatat_cvetom("ПРОЙДЕН ✓\n", 32);
-        proydeno_testov++;
+    // Создаем поле с выигрышной комбинацией для X
+    GameBoard winBoard = createEmptyBoard();
+    winBoard[0][0] = PLAYER_X;
+    winBoard[0][1] = PLAYER_X;
+    winBoard[0][2] = PLAYER_X;
+    char winner = checkWinner(winBoard);
+    // Проверяем, что функция правильно определяет победителя
+    if (winner == PLAYER_X) {
+        printColor("ПРОЙДЕН ✓\n", 32);
+        passedTests++;
     } else {
-        pechatat_cvetom("ПРОВАЛ ✗\n", 31);
+        printColor("ПРОВАЛ ✗\n", 31);
     }
     
     cout << "Тест 6: Проверка ничьей... ";
-    IgrovoePole pole_nichyi = sozdat_pustoe_pole();
-    pole_nichyi[0][0] = IGROK_X; 
-    pole_nichyi[0][1] = IGROK_O; 
-    pole_nichyi[0][2] = IGROK_X;
-    pole_nichyi[1][0] = IGROK_O; 
-    pole_nichyi[1][1] = IGROK_X; 
-    pole_nichyi[1][2] = IGROK_O;
-    pole_nichyi[2][0] = IGROK_O; 
-    pole_nichyi[2][1] = IGROK_X; 
-    pole_nichyi[2][2] = IGROK_O;
-    bool nichya = proverit_nichyu(pole_nichyi) && 
-                  proverit_pobeditelya(pole_nichyi) == PUSTAYA_KLETKA;
-    if (nichya) {
-        pechatat_cvetom("ПРОЙДЕН ✓\n", 32);
-        proydeno_testov++;
+    // Создаем поле без победителя, но полностью заполненное
+    GameBoard drawBoard = createEmptyBoard();
+    drawBoard[0][0] = PLAYER_X; drawBoard[0][1] = PLAYER_O; drawBoard[0][2] = PLAYER_X;
+    drawBoard[1][0] = PLAYER_O; drawBoard[1][1] = PLAYER_X; drawBoard[1][2] = PLAYER_O;
+    drawBoard[2][0] = PLAYER_O; drawBoard[2][1] = PLAYER_X; drawBoard[2][2] = PLAYER_O;
+    // Проверяем, что поле признается ничьей (заполнено и нет победителя)
+    bool isDrawGame = isDraw(drawBoard) && 
+                  checkWinner(drawBoard) == EMPTY_CELL;
+    if (isDrawGame) {
+        printColor("ПРОЙДЕН ✓\n", 32);
+        passedTests++;
     } else {
-        pechatat_cvetom("ПРОВАЛ ✗\n", 31);
+        printColor("ПРОВАЛ ✗\n", 31);
     }
     
     cout << "Тест 7: Граничные значения... ";
-    bool pravilno1 = proverit_format_hoda("A1", stroka, stolbec);
-    bool pravilno2 = proverit_format_hoda("C3", stroka, stolbec);
-    bool nepravilno1 = proverit_format_hoda("A0", stroka, stolbec);
-    bool nepravilno2 = proverit_format_hoda("D1", stroka, stolbec);
-    if (pravilno1 && pravilno2 && !nepravilno1 && !nepravilno2) {
-        pechatat_cvetom("ПРОЙДЕН ✓\n", 32);
-        proydeno_testov++;
+    // Проверяем минимальные и максимальные допустимые координаты
+    bool valid1 = isValidMove("A1", row, col);   // Минимальные координаты
+    bool valid2 = isValidMove("C3", row, col);   // Максимальные координаты
+    bool invalid1 = isValidMove("A0", row, col); // Недопустимая цифра
+    bool invalid2 = isValidMove("D1", row, col); // Недопустимая буква
+    if (valid1 && valid2 && !invalid1 && !invalid2) {
+        printColor("ПРОЙДЕН ✓\n", 32);
+        passedTests++;
     } else {
-        pechatat_cvetom("ПРОВАЛ ✗\n", 31);
+        printColor("ПРОВАЛ ✗\n", 31);
     }
     
     cout << "Тест 8: Ввод букв вместо чисел... ";
-    bool nepravilno3 = proverit_format_hoda("AB", stroka, stolbec);
-    if (!nepravilno3) {
-        pechatat_cvetom("ПРОЙДЕН ✓\n", 32);
-        proydeno_testov++;
+    // Проверяем обработку явно некорректного ввода
+    bool invalid3 = isValidMove("AB", row, col);
+    if (!invalid3) {
+        printColor("ПРОЙДЕН ✓\n", 32);
+        passedTests++;
     } else {
-        pechatat_cvetom("ПРОВАЛ ✗\n", 31);
+        printColor("ПРОВАЛ ✗\n", 31);
     }
     
     cout << "\n----------------------------------------\n";
-    cout << "РЕЗУЛЬТАТ: " << proydeno_testov << " из " << vsego_testov << " тестов пройдены\n";
+    cout << "РЕЗУЛЬТАТ: " << passedTests << " из " << totalTests << " тестов пройдены\n";
     
-    if (proydeno_testov == vsego_testov) {
-        pechatat_cvetom("\nВсе тесты успешно пройдены! Программа работает правильно.\n", 32);
+    // Выводим итоговое сообщение в зависимости от результатов тестирования
+    if (passedTests == totalTests) {
+        printColor("\nВсе тесты успешно пройдены! Программа работает правильно.\n", 32);
     } else {
-        pechatat_cvetom("\nЕсть проблемы в программе! Некоторые тесты не прошли.\n", 31);
+        printColor("\nЕсть проблемы в программе! Некоторые тесты не прошли.\n", 31);
     }
     
-    ozhidat_enter();
+    waitForEnter();
+}
+
+// Показать правила игры
+void showRules() {
+    printHeader();
+    printColor("----ПРАВИЛА ИГРЫ----\n", 33);
+    
+    cout << "\n1. Играют два игрока: ";
+    printColor("X", 31);
+    cout << " и ";
+    printColor("O\n", 34);
+    
+    cout << "2. Игроки ходят по очереди\n";
+    cout << "3. Для хода введите координаты клетки:\n";
+    cout << "   - Буква строки (A, B, C)\n";
+    cout << "   - Цифра столбца (1, 2, 3)\n";
+    cout << "   Пример: ";
+    printColor("A1", 32);
+    cout << ", ";
+    printColor("B2", 32);
+    cout << ", ";
+    printColor("C3\n", 32);
+    
+    cout << "\n4. Победит тот, кто первым поставит\n";
+    cout << "   3 своих символа в ряд:\n";
+    cout << "   - по горизонтали\n";
+    cout << "   - по вертикали\n";
+    cout << "   - по диагонали\n";
+    
+    cout << "\n5. Если все 9 клеток заполнены,\n";
+    cout << "   но нет победителя - ";
+    printColor("НИЧЬЯ!\n", 34);
+    
+    cout << "\n6. Во время игры можно использовать команды:\n";
+    cout << "   - ";
+    printColor("save", 32);
+    cout << " - сохранить игру\n";
+    cout << "   - ";
+    printColor("menu", 32);
+    cout << " - выйти в главное меню\n";
+    cout << "   - ";
+    printColor("help", 32);
+    cout << " - показать правила\n";
+    
+    waitForEnter();
+}
+
+// Основная функция игры
+void playGame() {
+    GameBoard board = createEmptyBoard();
+    char currentPlayer = PLAYER_X;
+    bool gameOver = false;
+    int moveCount = 0;
+    
+    // Выбор, кто ходит первым
+    printHeader();
+    cout << "Кто будет ходить первым?\n";
+    cout << "1. Игрок X (крестики)\n";
+    cout << "2. Игрок O (нолики)\n";
+    cout << "3. Случайный выбор\n";
+    
+    int choice = getValidNumber("Ваш выбор (1-3): ", 1, 3);
+    
+    if (choice == 1) {
+        currentPlayer = PLAYER_X;
+    } else if (choice == 2) {
+        currentPlayer = PLAYER_O;
+    } else {
+        // Случайный выбор первого игрока
+        srand(static_cast<unsigned int>(time(NULL)));
+        currentPlayer = (rand() % 2 == 0) ? PLAYER_X : PLAYER_O;
+        cout << "\nСлучайный выбор: начинает игрок ";
+        printColor(string(1, currentPlayer) + "\n", 
+                       (currentPlayer == PLAYER_X) ? 31 : 34);
+        waitForEnter();
+    }
+    
+    // Основной игровой цикл
+    while (!gameOver) {
+        printHeader();
+        displayBoard(board);
+        
+        cout << "Ход #" << (moveCount + 1) << "\n";
+        cout << "Текущий игрок: ";
+        if (currentPlayer == PLAYER_X) {
+            printColor("X (крестики)\n", 31);
+        } else {
+            printColor("O (нолики)\n", 34);
+        }
+        
+        cout << "\nВведите ход (например, A1) или команду: ";
+        string input;
+        getline(cin, input);
+        input = trimString(input);
+        
+        // Проверка команд
+        if (input == "help" || input == "Help") {
+            showRules();
+            continue;
+        }
+        
+        if (input == "menu" || input == "Menu") {
+            cout << "\nВыйти в главное меню? (да/нет): ";
+            string answer = getChoice("");
+            if (answer == "да") {
+                return;
+            }
+            continue;
+        }
+        
+        if (input == "save" || input == "Save") {
+            if (saveGame(board, currentPlayer)) {
+                printColor("Игра сохранена в файл: " + SAVE_FILE + "\n", 32);
+            }
+            waitForEnter();
+            continue;
+        }
+        
+        // Проверка правильности хода
+        int row, col;
+        if (!isValidMove(input, row, col)) {
+            printColor("Ошибка: неправильный формат хода!\n", 31);
+            cout << "Используйте: A1, B2, C3 и т.д.\n";
+            waitForEnter();
+            continue;
+        }
+        
+        // Пробуем сделать ход
+        if (!makeMove(board, row, col, currentPlayer)) {
+            printColor("Ошибка: эта клетка уже занята!\n", 31);
+            waitForEnter();
+            continue;
+        }
+        
+        moveCount++;
+        
+        // Проверяем, не закончилась ли игра
+        char winner = checkWinner(board);
+        if (winner != EMPTY_CELL) {
+            printHeader();
+            displayBoard(board);
+            
+            cout << "\n";
+            printColor("----------------------------------------\n", 33);
+            printColor("     ПОБЕДИЛ ИГРОК " + string(1, winner) + "!\n", 32);
+            printColor("----------------------------------------\n", 33);
+            gameOver = true;
+            
+        } else if (isDraw(board)) {
+            printHeader();
+            displayBoard(board);
+            
+            cout << "\n";
+            printColor("----------------------------------------\n", 33);
+            printColor("           НИЧЬЯ!\n", 34);
+            printColor("----------------------------------------\n", 33);
+            gameOver = true;
+            
+        } else {
+            // Меняем игрока
+            currentPlayer = (currentPlayer == PLAYER_X) ? PLAYER_O : PLAYER_X;
+        }
+    }
+    
+    cout << "\nВсего ходов: " << moveCount << endl;
+    waitForEnter();
+}
+
+// Функция для загрузки сохраненной игры
+void loadSavedGame() {
+    printHeader();
+    printColor("----ЗАГРУЗКА ИГРЫ----\n", 33);
+    
+    GameBoard board = createEmptyBoard();
+    char currentPlayer = PLAYER_X;
+    
+    if (!loadGame(board, currentPlayer)) {
+        cout << "\nНе удалось загрузить сохраненную игру.\n";
+        waitForEnter();
+        return;
+    }
+    
+    cout << "\nИгра успешно загружена!\n";
+    cout << "Текущий игрок: " << currentPlayer << "\n";
+    waitForEnter();
+    
+    // Продолжаем игру
+    bool gameOver = false;
+    int moveCount = 0;
+    
+    // Подсчитываем ходы, которые уже были сделаны в сохраненной игре
+    for (int i = 0; i < BOARD_SIZE; i++) {
+        for (int j = 0; j < BOARD_SIZE; j++) {
+            if (board[i][j] != EMPTY_CELL) {
+                moveCount++;
+            }
+        }
+    }
+    
+    while (!gameOver) {
+        printHeader();
+        displayBoard(board);
+        
+        cout << "Ход #" << (moveCount + 1) << "\n";
+        cout << "Текущий игрок: " << currentPlayer << "\n\n";
+        
+        cout << "Введите ход или команду: ";
+        string input;
+        getline(cin, input);
+        input = trimString(input);
+        
+        if (input == "menu" || input == "Menu") {
+            return;
+        }
+        
+        if (input == "save" || input == "Save") {
+            saveGame(board, currentPlayer);
+            waitForEnter();
+            continue;
+        }
+        
+        int row, col;
+        if (!isValidMove(input, row, col)) {
+            printColor("Ошибка: неправильный формат!\n", 31);
+            waitForEnter();
+            continue;
+        }
+        
+        if (!makeMove(board, row, col, currentPlayer)) {
+            printColor("Ошибка: клетка уже занята!\n", 31);
+            waitForEnter();
+            continue;
+        }
+        
+        moveCount++;
+        
+        char winner = checkWinner(board);
+        if (winner != EMPTY_CELL) {
+            printHeader();
+            displayBoard(board);
+            
+            cout << "\n";
+            printColor("----------------------------------------\n", 33);
+            printColor("     ПОБЕДИЛ ИГРОК " + string(1, winner) + "!\n", 32);
+            printColor("----------------------------------------\n", 33);
+            gameOver = true;
+            
+        } else if (isDraw(board)) {
+            printHeader();
+            displayBoard(board);
+            
+            cout << "\n";
+            printColor("----------------------------------------\n", 33);
+            printColor("           НИЧЬЯ!\n", 34);
+            printColor("----------------------------------------\n", 33);
+            gameOver = true;
+            
+        } else {
+            currentPlayer = (currentPlayer == PLAYER_X) ? PLAYER_O : PLAYER_X;
+        }
+    }
+    
+    waitForEnter();
+}
+
+void mainMenu() {
+    srand(static_cast<unsigned int>(time(NULL)));
+    
+    bool exitProgram = false;
+    
+    while (!exitProgram) {
+        printHeader();
+        
+        printColor("=== ГЛАВНОЕ МЕНЮ ===\n", 33);
+        cout << "\n";
+        cout << "1. Новая игра\n";
+        cout << "2. Загрузить сохраненную игру\n";
+        cout << "3. Правила игры\n";
+        cout << "4. Запустить тестирование\n";
+        cout << "5. Выйти из программы\n";
+        cout << "\n";
+        
+        int choice = getValidNumber("Выберите пункт меню (1-5): ", 1, 5);
+        
+        switch (choice) {
+            case 1:
+                playGame();
+                break;
+            case 2:
+                loadSavedGame();
+                break;
+            case 3:
+                showRules();
+                break;
+            case 4:
+                runTests();
+                break;
+            case 5:
+                exitProgram = true;
+                break;
+        }
+    }
+    
+    printHeader();
+    printColor("Спасибо за игру! До свидания!\n", 32);
+    cout << "\n";
+}
+
+int main() {
+    mainMenu();
+    return 0;
 }
