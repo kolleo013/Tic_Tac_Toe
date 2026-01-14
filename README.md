@@ -3,9 +3,9 @@
 
 Компиляция и запуск
 
-g++ -o tic_tac_toe tic_tac_toe.cpp
+g++ -o game game.cpp
 
-./tic_tac_toe
+./game
 
 Возможности:
 Цветной интерфейс с русскоязычными сообщениями
